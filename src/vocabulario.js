@@ -86,6 +86,7 @@ const VOZ_MODULOS = {
  * @returns {string}
  */
 function normalizar(s) {
+  if (!s) return '';
   return s.toLowerCase()
     .replace(/[áÁ]/g, 'a')
     .replace(/[éÉ]/g, 'e')
@@ -171,9 +172,11 @@ class VocabularioLocal {
    * @returns {{ campoId: string, valor: string } | null}
    */
   buscar(texto) {
-    const raw = localStorage.getItem(this._key);
-    const vocab = raw ? JSON.parse(raw) : {};
-    return vocab[normalizar(texto)] || null;
+    try {
+      const raw = localStorage.getItem(this._key);
+      const vocab = (raw ? JSON.parse(raw) : null) || {};
+      return vocab[normalizar(texto)] || null;
+    } catch { return null; }
   }
 
   /**
@@ -183,26 +186,26 @@ class VocabularioLocal {
    * @param {string} valor — valor corregido
    */
   guardar(termino, campoId, valor) {
-    const raw = localStorage.getItem(this._key);
-    const vocab = raw ? JSON.parse(raw) : {};
-    vocab[normalizar(termino)] = { campoId, valor };
-    localStorage.setItem(this._key, JSON.stringify(vocab));
+    try {
+      const raw = localStorage.getItem(this._key);
+      const vocab = (raw ? JSON.parse(raw) : null) || {};
+      vocab[normalizar(termino)] = { campoId, valor };
+      localStorage.setItem(this._key, JSON.stringify(vocab));
+    } catch { /* localStorage no disponible */ }
   }
 
   /**
    * Exporta el vocabulario local como archivo JSON descargable.
    */
   exportar() {
-    const raw = localStorage.getItem(this._key) || '{}';
-    const blob = new Blob([raw], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'vocabulario-' + this._key + '.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      const data = localStorage.getItem(this._key) || '{}';
+      const blob = new Blob([data], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'vocabulario-' + this._key + '.json';
+      a.click();
+    } catch (e) { console.warn('[VozTerreno] exportar:', e.message); }
   }
 
   /**
@@ -214,23 +217,19 @@ class VocabularioLocal {
   importar(archivo) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = e => {
         try {
           const imported = JSON.parse(e.target.result);
+          if (!imported || typeof imported !== 'object' || Array.isArray(imported))
+            return reject(new Error('Formato inválido'));
           const raw = localStorage.getItem(this._key);
-          const vocab = raw ? JSON.parse(raw) : {};
-          let count = 0;
-          for (const [k, v] of Object.entries(imported)) {
-            vocab[k] = v;
-            count++;
-          }
-          localStorage.setItem(this._key, JSON.stringify(vocab));
-          resolve(count);
-        } catch (err) {
-          reject(err);
-        }
+          const existing = (raw ? JSON.parse(raw) : null) || {};
+          localStorage.setItem(this._key, JSON.stringify(Object.assign(existing, imported)));
+          resolve(Object.keys(imported).length);
+        } catch (err) { reject(err); }
       };
-      reader.onerror = () => reject(reader.error);
+      reader.onerror  = () => reject(reader.error);
+      reader.onabort  = () => reject(new Error('Lectura abortada'));
       reader.readAsText(archivo);
     });
   }
@@ -240,7 +239,9 @@ class VocabularioLocal {
    * @returns {Object}
    */
   listar() {
-    const raw = localStorage.getItem(this._key);
-    return raw ? JSON.parse(raw) : {};
+    try {
+      const raw = localStorage.getItem(this._key);
+      return (raw ? JSON.parse(raw) : null) || {};
+    } catch { return {}; }
   }
 }
