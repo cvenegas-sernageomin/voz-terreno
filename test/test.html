@@ -130,17 +130,67 @@
     }
 
     // =========================================================
-    // EXTRACTOR TESTS (puede fallar si extractor.js no existe aún)
+    // EXTRACTOR TESTS
     // =========================================================
-    section('extractor.js (puede fallar — pendiente Task 3)');
+    section('extractor.js');
 
     try {
-      assert(
-        'typeof extraerCampos === "function"',
-        typeof extraerCampos === 'function'
-      );
+      const v2 = new VocabularioLocal("test-ext");
+      v2.activar(["igneas", "varnes", "isrm"]);
+
+      const a1 = Extractor.extraerAngulo("manteo 35 grados", [0, 90]);
+      assert("extraerAngulo '35 grados'", a1 && a1.valor === 35);
+
+      const a2 = Extractor.extraerAngulo("dip 72°", [0, 90]);
+      assert("extraerAngulo '72°'", a2 && a2.valor === 72);
+
+      const a3 = Extractor.extraerAngulo("treinta grados", [0, 90]);
+      assert("extraerAngulo palabra 'treinta'", a3 && a3.valor === 30);
+
+      const a4 = Extractor.extraerAngulo("manteo 95°", [0, 90]);
+      assert("extraerAngulo fuera de rango = null", a4 === null);
+
+      const n1 = Extractor.extraerNumero("largo 200 metros", [0, 50000]);
+      assert("extraerNumero '200 metros'", n1 && n1.valor === 200);
+
+      const n2 = Extractor.extraerNumero("H/L 0,15", [0, 1]);
+      assert("extraerNumero decimal con coma '0,15'", n2 && n2.valor === 0.15);
+
+      const isrm1 = Extractor.extraerISRM("roca moderadamente meteorizada");
+      assert("extraerISRM 'moderadamente meteorizada' → W3", isrm1 && isrm1.valor.startsWith("W3"));
+
+      const isrm2 = Extractor.extraerISRM("W1 fresca sin alteracion");
+      assert("extraerISRM 'W1 fresca' → W1", isrm2 && isrm2.valor.startsWith("W1"));
+
+      const campoClasif = { id: "tipo-movimiento", tipo: "clasificacion",
+        valores: ["Caída de roca", "Flujo de detritos (debris flow)", "Deslizamiento traslacional en roca"] };
+      const c1 = Extractor.extraerCampo("flujo de detritos", campoClasif, v2);
+      assert("extraerCampo clasificacion 'flujo de detritos'", c1 && c1.valor === "Flujo de detritos (debris flow)");
+
+      const campoLito = { id: "litologia", tipo: "litologia" };
+      const c2 = Extractor.extraerCampo("basalto andesitico", campoLito, v2);
+      assert("extraerCampo litologia 'basalto andesitico'", c2 && c2.confianza > 0);
+
+      const campoLibre = { id: "otros", tipo: "texto_libre" };
+      const c3 = Extractor.extraerCampo("  zona activa con fracturas   ", campoLibre, v2);
+      assert("extraerCampo texto_libre trim", c3 && c3.valor === "zona activa con fracturas");
+
+      const campos = [
+        { id: "tipo-movimiento", label: "Tipo", tipo: "clasificacion",
+          valores: ["Flujo de detritos (debris flow)", "Deslizamiento traslacional en roca"] },
+        { id: "orientacion", label: "Orientación", tipo: "angulo", rango: [0, 360] },
+        { id: "otros", label: "Observaciones", tipo: "texto_libre" },
+      ];
+      const multi = Extractor.extraerMultiple(
+        "flujo de detritos orientacion 220 grados zona activa", campos, v2);
+      assert("extraerMultiple detecta >=2 campos", multi.length >= 2);
+      assert("extraerMultiple incluye tipo-movimiento", multi.some(r => r.campoId === "tipo-movimiento"));
+      assert("extraerMultiple excluye texto_libre", multi.every(r => r.campoId !== "otros"));
+
     } catch (e) {
-      out.innerHTML += '<span class="skip">SKIP</span> extractor.js no cargado aún\n';
+      out.innerHTML += '<span class="fail">ERROR inesperado en extractor tests: ' +
+        e.message + '</span>\n';
+      failed++;
     }
 
     // =========================================================
