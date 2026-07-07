@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Voz Terreno – Tests</title>
+  <style>
+    body { font-family: monospace; padding: 1.2em; background: #1a1a1a; color: #d4d4d4; }
+    h2 { color: #9cdcfe; margin-bottom: 0.5em; }
+    pre { margin: 0; line-height: 1.7; }
+    .pass { color: #4ec9b0; }
+    .fail { color: #f44747; font-weight: bold; }
+    .skip { color: #808080; }
+    .section { color: #569cd6; margin-top: 0.4em; }
+    .summary-ok { color: #4ec9b0; font-weight: bold; font-size: 1.1em; }
+    .summary-fail { color: #f44747; font-weight: bold; font-size: 1.1em; }
+  </style>
+</head>
+<body>
+  <h2>Voz Terreno – Test Suite</h2>
+  <pre id="output">Cargando...</pre>
+
+  <script src="../src/vocabulario.js"></script>
+  <script src="../src/extractor.js"></script>
+  <script>
+    const out = document.getElementById('output');
+    out.textContent = '';
+    let passed = 0, failed = 0;
+
+    function assert(label, condition) {
+      if (condition) {
+        out.innerHTML += '<span class="pass">PASS</span> ' + label + '\n';
+        passed++;
+      } else {
+        out.innerHTML += '<span class="fail">FAIL</span> ' + label + '\n';
+        failed++;
+      }
+    }
+
+    function section(title) {
+      out.innerHTML += '\n<span class="section">--- ' + title + ' ---</span>\n';
+    }
+
+    // =========================================================
+    // VOCABULARIO TESTS
+    // =========================================================
+    section('vocabulario.js');
+
+    try {
+      // 1. VOZ_MODULOS es objeto con 8 keys
+      assert(
+        'VOZ_MODULOS es un objeto con 8 keys',
+        typeof VOZ_MODULOS === 'object' && VOZ_MODULOS !== null &&
+        Object.keys(VOZ_MODULOS).length === 8
+      );
+
+      // 2. igneas tiene más de 25 elementos
+      assert(
+        'VOZ_MODULOS.igneas es array con > 25 elementos',
+        Array.isArray(VOZ_MODULOS.igneas) && VOZ_MODULOS.igneas.length > 25
+      );
+
+      // 3. Instanciación
+      const vocab = new VocabularioLocal('test');
+      assert(
+        'new VocabularioLocal("test") crea instancia',
+        vocab instanceof VocabularioLocal
+      );
+
+      // 4. activar no lanza error
+      vocab.activar(['igneas', 'varnes']);
+      assert('.activar(["igneas","varnes"]) ejecuta sin error', true);
+
+      // 5. getTerminos retorna array con length > 0
+      const terminos = vocab.getTerminos();
+      assert(
+        '.getTerminos() retorna array con length > 0',
+        Array.isArray(terminos) && terminos.length > 0
+      );
+
+      // 6. getTerminos incluye {original: "granito"}
+      assert(
+        'getTerminos() incluye entrada con original === "granito"',
+        terminos.some(t => t.original === 'granito')
+      );
+
+      // 7. getTerminos incluye {original: "flujo de detritos"}
+      assert(
+        'getTerminos() incluye entrada con original === "flujo de detritos"',
+        terminos.some(t => t.original === 'flujo de detritos')
+      );
+
+      // Limpiar localStorage antes de guardar (estado limpio)
+      localStorage.removeItem('voz-vocab-test');
+
+      // 8. guardar
+      vocab.guardar('tobita', 'litologia', 'Toba vitrica');
+      assert('.guardar("tobita","litologia","Toba vitrica") ejecuta sin error', true);
+
+      // 9. buscar("tobita")
+      const r1 = vocab.buscar('tobita');
+      assert(
+        '.buscar("tobita") retorna {campoId:"litologia", valor:"Toba vitrica"}',
+        r1 !== null &&
+        r1.campoId === 'litologia' &&
+        r1.valor === 'Toba vitrica'
+      );
+
+      // 10. buscar("tóbita") con tilde — normalización
+      const r2 = vocab.buscar('tóbita');
+      assert(
+        '.buscar("tóbita") retorna mismo resultado (normalización de tildes)',
+        r2 !== null &&
+        r2.campoId === 'litologia' &&
+        r2.valor === 'Toba vitrica'
+      );
+
+      // 11. listar() retorna objeto con key "tobita"
+      const lista = vocab.listar();
+      assert(
+        '.listar() retorna objeto con key "tobita"',
+        lista !== null &&
+        typeof lista === 'object' &&
+        'tobita' in lista
+      );
+
+    } catch (e) {
+      out.innerHTML += '<span class="fail">ERROR inesperado en vocabulario tests: ' +
+        e.message + '</span>\n';
+      failed++;
+    }
+
+    // =========================================================
+    // EXTRACTOR TESTS (puede fallar si extractor.js no existe aún)
+    // =========================================================
+    section('extractor.js (puede fallar — pendiente Task 3)');
+
+    try {
+      assert(
+        'typeof extraerCampos === "function"',
+        typeof extraerCampos === 'function'
+      );
+    } catch (e) {
+      out.innerHTML += '<span class="skip">SKIP</span> extractor.js no cargado aún\n';
+    }
+
+    // =========================================================
+    // RESUMEN
+    // =========================================================
+    const total = passed + failed;
+    out.innerHTML += '\n';
+    if (failed === 0) {
+      out.innerHTML += '<span class="summary-ok">RESULTADO: ' + passed + '/' + total + ' PASSED</span>\n';
+    } else {
+      out.innerHTML += '<span class="summary-fail">RESULTADO: ' + failed + ' FAILED, ' + passed + ' passed (' + total + ' total)</span>\n';
+    }
+  </script>
+</body>
+</html>
