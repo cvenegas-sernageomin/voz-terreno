@@ -44,13 +44,21 @@ const Extractor = (() => {
     let bestScore = 0;
     let bestValor = null;
 
+    // Fix 4: collect ALL substring matches, return the most specific (longest norm)
+    let bestSubstr = null;
+    let bestSubstrLen = -1;
+
     for (const t of terminos) {
       const original = typeof t === 'string' ? t : t.original;
       const norm = typeof t === 'string' ? normalizar(t) : t.norm;
 
-      // Primer paso: substring exacto → confianza 1.0
+      // Primer paso: substring exacto → recopilar todos, elegir el más largo
       if (textoNorm.includes(norm)) {
-        return { valor: original, confianza: 1.0 };
+        if (norm.length > bestSubstrLen) {
+          bestSubstrLen = norm.length;
+          bestSubstr = { valor: original, confianza: 1.0 };
+        }
+        continue;
       }
 
       // Segundo paso: word-by-word fuzzy
@@ -77,6 +85,9 @@ const Extractor = (() => {
       }
     }
 
+    // Return most specific substring match if any were found
+    if (bestSubstr !== null) return bestSubstr;
+
     return bestScore >= 0.5 ? { valor: bestValor, confianza: bestScore } : null;
   }
 
@@ -94,6 +105,22 @@ const Extractor = (() => {
       return { valor: val, confianza: 0.95 };
     }
 
+    // Fix 1: compound Spanish numbers (teens + contracted 21-29)
+    const compuestos = {
+      'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14, 'quince': 15,
+      'dieciseis': 16, 'diecisiete': 17, 'dieciocho': 18, 'diecinueve': 19,
+      'veintiuno': 21, 'veintidos': 22, 'veintitres': 23, 'veinticuatro': 24,
+      'veinticinco': 25, 'veintiseis': 26, 'veintisiete': 27, 'veintiocho': 28,
+      'veintinueve': 29
+    };
+    for (const word of t.split(/\s+/)) {
+      if (compuestos[word] !== undefined) {
+        const val = compuestos[word];
+        if (rango && (val < rango[0] || val > rango[1])) return null;
+        return { valor: val, confianza: 0.8 };
+      }
+    }
+
     // Palabras: decenas y unidades opcionales
     const decenas = {
       'cero': 0, 'diez': 10, 'veinte': 20, 'treinta': 30, 'cuarenta': 40,
@@ -104,7 +131,7 @@ const Extractor = (() => {
       'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9
     };
 
-    // Primer paso: "decena y unidad" (ej. "treinta y cinco")
+    // Segundo paso: "decena y unidad" (ej. "treinta y cinco")
     for (const [dec, decVal] of Object.entries(decenas)) {
       const mDY = t.match(new RegExp('\\b' + dec + '\\s+y\\s+(\\w+)'));
       if (mDY && unidades[mDY[1]] !== undefined) {
@@ -114,7 +141,7 @@ const Extractor = (() => {
       }
     }
 
-    // Segundo paso: solo decena (ej. "treinta grados")
+    // Tercer paso: solo decena (ej. "treinta grados")
     for (const [dec, decVal] of Object.entries(decenas)) {
       if (new RegExp('\\b' + dec + '\\b').test(t)) {
         if (rango && (decVal < rango[0] || decVal > rango[1])) return null;
@@ -159,7 +186,7 @@ const Extractor = (() => {
         valor: 'W4 – Muy meteorizada'
       },
       {
-        keywords: ['w5', 'completamente', 'suelo residual'],
+        keywords: ['w5', 'completamente meteorizada', 'suelo residual'],
         valor: 'W5 – Completamente meteorizada (suelo residual)'
       },
       {
@@ -178,7 +205,15 @@ const Extractor = (() => {
 
     for (const mapping of mappings) {
       for (const kw of mapping.keywords) {
-        if (t.includes(normalizar(kw))) {
+        const normKw = normalizar(kw);
+        // Fix 3: use word-boundary regex for bare W-codes to avoid partial matches
+        let matches;
+        if (/^w[12345]$/.test(normKw)) {
+          matches = new RegExp('\\b' + normKw + '\\b').test(t);
+        } else {
+          matches = t.includes(normKw);
+        }
+        if (matches) {
           return { valor: mapping.valor, confianza: 0.95 };
         }
       }

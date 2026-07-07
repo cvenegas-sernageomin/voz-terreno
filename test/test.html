@@ -150,6 +150,9 @@
       const a4 = Extractor.extraerAngulo("manteo 95°", [0, 90]);
       assert("extraerAngulo fuera de rango = null", a4 === null);
 
+      const a5 = Extractor.extraerAngulo("manteo veinticinco grados", [0, 90]);
+      assert("extraerAngulo compound 'veinticinco'", a5 && a5.valor === 25);
+
       const n1 = Extractor.extraerNumero("largo 200 metros", [0, 50000]);
       assert("extraerNumero '200 metros'", n1 && n1.valor === 200);
 
