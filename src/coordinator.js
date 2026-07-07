@@ -1,5 +1,5 @@
 const VozTerreno = (() => {
-  const BASE_URL = "https://cvenegas-sernageomin.github.io/voz";
+  const BASE_URL = "https://cvenegas-sernageomin.github.io/voz-terreno";
 
   let _config = null;
   let _vocab  = null;
