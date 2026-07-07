@@ -187,6 +187,9 @@
       assert("extraerMultiple incluye tipo-movimiento", multi.some(r => r.campoId === "tipo-movimiento"));
       assert("extraerMultiple excluye texto_libre", multi.every(r => r.campoId !== "otros"));
 
+      const isrm3 = Extractor.extraerISRM("arcillizacion total clays dominantes");
+      assert("extraerISRM 'arcillizacion total' → hidrotermal intensa", isrm3 && isrm3.valor.includes("intensa"));
+
     } catch (e) {
       out.innerHTML += '<span class="fail">ERROR inesperado en extractor tests: ' +
         e.message + '</span>\n';
