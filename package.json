@@ -1,0 +1,16 @@
+{
+  "name": "voz-terreno",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Dictado por voz 100% offline (Whisper) para las PWAs de geologia de terreno",
+  "type": "module",
+  "scripts": {
+    "modelo": "node scripts/traer-modelo.mjs",
+    "vendorizar": "node scripts/vendorizar.mjs",
+    "preparar": "npm run vendorizar && npm run modelo",
+    "servir": "node --run-if-present servir || python -m http.server 8850"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1"
+  }
+}

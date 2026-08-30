@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Espiga — Whisper offline</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:760px;margin:0 auto;padding:16px;line-height:1.5}
+  h1{font-size:18px} h2{font-size:14px;margin:18px 0 6px;color:#555}
+  button{font:inherit;padding:9px 16px;border:1px solid #ccc;border-radius:8px;background:#f6f6f6;cursor:pointer}
+  button:disabled{opacity:.45;cursor:default}
+  #log{background:#111;color:#d8e6d8;padding:10px;border-radius:8px;font:12px/1.45 ui-monospace,monospace;
+       white-space:pre-wrap;max-height:280px;overflow:auto}
+  #texto{width:100%;min-height:110px;font:15px/1.5 inherit;padding:9px;border:1px solid #ccc;border-radius:8px}
+  .barra{height:9px;background:#e4e4e4;border-radius:5px;overflow:hidden;margin:6px 0}
+  .barra > i{display:block;height:100%;background:#2f915f;width:0}
+  .mal{color:#c0392b;font-weight:600} .bien{color:#1e7a4a;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Espiga técnica — Whisper 100% offline</h1>
+<p>Valida los cuatro puntos de la Fase 0b antes de construir nada: que los dos bugs históricos
+quedaron resueltos, que <b>ningún</b> archivo viene de un CDN externo, y qué tan bien transcribe
+whisper-base en español geológico.</p>
+
+<h2>1 · Cargar el motor</h2>
+<button id="bCargar">Cargar modelo</button>
+<div class="barra"><i id="prog"></i></div>
+
+<h2>2 · Dictar</h2>
+<button id="bGrabar" disabled>🎤 Grabar</button>
+<p style="font-size:13px;color:#666">Sugerencia de prueba, para exigirle vocabulario técnico:
+“Toba vitrocristalina soldada, de color gris verdoso, con fenocristales de plagioclasa subhedral
+y biotita, matriz afanítica, alteración propilítica moderada.”</p>
+<textarea id="texto" placeholder="Acá aparece lo transcrito…"></textarea>
+
+<h2>Registro</h2>
+<div id="log"></div>
+
+<script type="module">
+const $ = s => document.querySelector(s);
+const log = (m, cls) => {
+  const t = new Date().toLocaleTimeString('es-CL');
+  $('#log').insertAdjacentHTML('beforeend', `<span class="${cls||''}">[${t}] ${m}</span>\n`);
+  $('#log').scrollTop = 1e9;
+};
+
+// --- Guarda anti-CDN -------------------------------------------------------------------------
+// El objetivo es que esto funcione sin señal. Un archivo que se baje de jsdelivr o huggingface
+// arruina eso, y en la oficina NO se nota (hay wifi). Interceptamos fetch para que cualquier
+// pedido fuera de nuestro origen sea un error fuerte y visible, no una sorpresa en terreno.
+const fetchReal = window.fetch;
+let externos = 0;
+window.fetch = (r, o) => {
+  const u = new URL(typeof r === 'string' ? r : r.url, location.href);
+  if (u.origin !== location.origin) {
+    externos++;
+    log(`✗ PEDIDO EXTERNO BLOQUEADO: ${u.host}${u.pathname}`, 'mal');
+    return Promise.reject(new Error('Pedido externo bloqueado por la espiga: ' + u.href));
+  }
+  return fetchReal(r, o);
+};
+
+const BASE     = new URL('./', location.href).href;
+const MODELO   = 'Xenova/whisper-base';
+const worker = new Worker(new URL('vendor/voz/whisper-worker.js', location.href), {type:'module'});
+
+worker.onerror = e => log('✗ Error del worker: ' + (e.message || e.type), 'mal');
+worker.onmessage = e => {
+  const m = e.data;
+  if (m.tipo === 'progreso') {
+    const i = m.info;
+    if (i.status === 'progress' && i.progress != null) {
+      $('#prog').style.width = i.progress.toFixed(1) + '%';
+      if (Math.random() < .04) log(`  ${i.file} ${i.progress.toFixed(0)}%`);
+    } else if (i.status === 'done')  log(`  ✓ ${i.file}`);
+    else if (i.status === 'initiate') log(`  ↓ ${i.file}`);
+  }
+  if (m.tipo === 'listo') {
+    $('#prog').style.width = '100%';
+    log('✓ Modelo cargado y listo', 'bien');
+    log(externos === 0 ? '✓ Cero pedidos a CDN externos — es offline de verdad' : `✗ Hubo ${externos} pedidos externos`, externos===0?'bien':'mal');
+    $('#bGrabar').disabled = false;
+  }
+  if (m.tipo === 'texto') {
+    $('#texto').value = m.texto;
+    log('✓ Transcrito: ' + m.texto, 'bien');
+    $('#bGrabar').disabled = false; $('#bGrabar').textContent = '🎤 Grabar';
+  }
+  if (m.tipo === 'error') {
+    log(`✗ Error en «${m.fase}»: ${m.msg}`, 'mal');
+    $('#bGrabar').disabled = false; $('#bGrabar').textContent = '🎤 Grabar';
+  }
+};
+
+$('#bCargar').onclick = () => {
+  $('#bCargar').disabled = true;
+  log(`Cargando ${MODELO} desde ${BASE}modelo/`);
+  worker.postMessage({tipo:'cargar', datos:{modeloBase: BASE + 'modelo/', modeloId: MODELO}});
+};
+
+// --- Transcribir un archivo (para probar la calidad sin micrófono) ---------------------------
+// Mismo camino que la grabación: decodificar → remuestrear a 16 kHz mono → worker.
+async function transcribirBlob(blob, etiqueta) {
+  $('#bGrabar').disabled = true;
+  const ctx = new AudioContext();
+  const audio = await ctx.decodeAudioData(await blob.arrayBuffer());
+  await ctx.close();
+  const off = new OfflineAudioContext(1, Math.ceil(audio.duration * 16000), 16000);
+  const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
+  const f32 = (await off.startRendering()).getChannelData(0);
+  log(`Transcribiendo «${etiqueta}» — ${audio.duration.toFixed(1)} s`);
+  worker.postMessage({tipo:'transcribir', datos:f32}, [f32.buffer]);
+}
+window.probarArchivo = async ruta => {
+  const r = await fetch(ruta);
+  await transcribirBlob(await r.blob(), ruta.split('/').pop());
+};
+
+// --- Grabación -------------------------------------------------------------------------------
+let rec = null, trozos = [];
+$('#bGrabar').onclick = async () => {
+  if (rec && rec.state === 'recording') { rec.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    trozos = [];
+    rec = new MediaRecorder(stream);
+    rec.ondataavailable = e => e.data.size && trozos.push(e.data);
+    rec.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      $('#bGrabar').disabled = true; $('#bGrabar').textContent = '⏳ Transcribiendo…';
+      // MediaRecorder entrega webm/opus en Chrome y mp4/aac en Safari; decodificar con
+      // AudioContext acepta ambos, en vez de asumir un formato.
+      const buf = await new Blob(trozos).arrayBuffer();
+      const ctx = new AudioContext();
+      const audio = await ctx.decodeAudioData(buf);
+      await ctx.close();
+      // Whisper espera mono a 16 kHz. Sin remuestrear, transcribe cualquier cosa.
+      const off = new OfflineAudioContext(1, Math.ceil(audio.duration * 16000), 16000);
+      const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
+      const f32 = (await off.startRendering()).getChannelData(0);
+      log(`Audio: ${audio.duration.toFixed(1)} s → ${f32.length} muestras a 16 kHz`);
+      worker.postMessage({tipo:'transcribir', datos:f32}, [f32.buffer]);
+    };
+    rec.start();
+    $('#bGrabar').textContent = '⏹ Detener';
+    log('Grabando…');
+  } catch (e) { log('✗ No se pudo usar el micrófono: ' + e.message, 'mal'); }
+};
+
+log('Espiga lista. Toca «Cargar modelo».');
+</script>
+</body>
+</html>

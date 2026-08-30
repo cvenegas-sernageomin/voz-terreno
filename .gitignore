@@ -1,0 +1,9 @@
+node_modules/
+prueba/
+
+# Artefactos regenerables con `npm run preparar`. No se versionan en main: viven en gh-pages,
+# que es la rama que se publica. Asi main queda liviano y reproducible.
+modelo/
+vendor/voz/transformers.min.js
+vendor/voz/*.wasm
+vendor/voz/*.mjs
