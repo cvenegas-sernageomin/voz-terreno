@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VozTerreno — demo del módulo</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:680px;margin:0 auto;padding:16px;line-height:1.5}
+  h1{font-size:18px}
+  .btn{font:inherit;padding:9px 15px;border:1px solid #ccc;border-radius:9px;background:#f4f4f4;cursor:pointer}
+  .btn.sec{background:#eef2ee}
+  .btnbar{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  textarea{width:100%;min-height:200px;font:16px/1.45 inherit;padding:10px;border:1px solid #ccc;border-radius:10px}
+  .nota{font-size:12px;color:#666;margin:6px 0}
+  .barra{height:9px;background:#e4e4e4;border-radius:5px;overflow:hidden;margin:8px 0}
+  .barra>i{display:block;height:100%;background:#2f915f;width:0}
+</style>
+</head>
+<body>
+<h1>VozTerreno — demo del módulo público</h1>
+<p class="nota">Reproduce cómo queda en la PWA: el botón 🎤 al lado de los demás, y el texto
+dictado entrando al cuadro sin pisar lo que ya está escrito.</p>
+
+<div class="btnbar" id="barra">
+  <button class="btn sec" id="bEstado">Ver estado</button>
+  <button class="btn sec" id="bDescargar">Descargar motor</button>
+  <button class="btn sec" id="bBorrar">Borrar del dispositivo</button>
+</div>
+<div class="barra"><i id="prog"></i></div>
+<div class="nota" id="info">—</div>
+
+<textarea id="ta" placeholder="Escribe algo acá, pon el cursor en medio y dicta: el texto se inserta donde está el cursor, sin borrar lo tuyo."></textarea>
+
+<script src="vendor/voz/voz.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const info = m => { $('#info').textContent = m; };
+
+// Asi se integra en una PWA: una linea.
+$('#barra').prepend(VozTerreno.montarBoton($('#ta'), {
+  clase: 'btn sec',
+  aviso: info,
+  onProgreso: p => { $('#prog').style.width = p.pct + '%'; info(`Descargando… ${Math.round(p.pct)}%`); },
+}));
+
+const fmt = b => b < 1048576 ? Math.round(b/1024)+' KB' : (b/1048576).toFixed(1)+' MB';
+$('#bEstado').onclick = async () => {
+  const desc = await VozTerreno.estaDescargado();
+  info(`estado: ${VozTerreno.estado()} · descargado: ${desc ? 'sí' : 'no'} · ocupa: ${fmt(await VozTerreno.tamanoEnDisco())}`);
+};
+$('#bDescargar').onclick = async () => {
+  try {
+    await VozTerreno.descargar(p => { $('#prog').style.width = p.pct+'%'; info(`Descargando… ${Math.round(p.pct)}%`); });
+    $('#prog').style.width = '100%';
+    info('✓ Motor listo — ya funciona sin conexión. Ocupa ' + fmt(await VozTerreno.tamanoEnDisco()));
+  } catch (e) { info('✗ ' + e.message); }
+};
+$('#bBorrar').onclick = async () => {
+  await VozTerreno.borrar(); $('#prog').style.width = '0';
+  info('Motor borrado del dispositivo');
+};
+
+// En la demo el modelo se sirve del mismo servidor local, no del dominio publicado.
+VozTerreno.configurar({ modelo: new URL('modelo/', location.href).href });
+info('Listo. «Descargar motor» la primera vez; después el 🎤 funciona sin señal.');
+</script>
+</body>
+</html>
