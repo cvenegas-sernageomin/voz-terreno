@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f4f">
+<title>Banco de pruebas de dictado</title>
+<style>
+  :root{--verde:#1f6f4f;--bd:#d6ddd6;--muted:#667;--rojo:#c0392b}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;
+       background:#f6f8f6;color:#1a201a}
+  header{background:var(--verde);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 14px 12px}
+  header h1{margin:0;font-size:16px} header p{margin:3px 0 0;font-size:12px;opacity:.9}
+  main{max-width:720px;margin:0 auto;padding:14px 12px 90px}
+  .card{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:13px;margin-bottom:12px}
+  h2{font-size:13px;margin:0 0 9px;color:var(--verde);text-transform:uppercase;letter-spacing:.4px}
+  button{font:inherit;font-weight:600;border:none;border-radius:10px;padding:10px 15px;cursor:pointer;
+         background:#eef2ee;color:#1a201a;border:1px solid var(--bd)}
+  button.p{background:var(--verde);color:#fff;border-color:var(--verde)}
+  button.del{background:#fff;color:var(--rojo);border-color:#e8c4c0}
+  button:disabled{opacity:.45}
+  #grabar{width:100%;padding:20px;font-size:17px;border-radius:14px}
+  #grabar.rec{background:var(--rojo);color:#fff;border-color:var(--rojo)}
+  textarea{width:100%;font:15px/1.5 inherit;padding:9px;border:1px solid var(--bd);border-radius:9px;
+           background:#fff;min-height:88px;resize:vertical}
+  .crudo{background:#f3f4f3;color:#333;font-family:ui-monospace,monospace;font-size:13px;
+         padding:9px;border-radius:9px;border:1px solid var(--bd);white-space:pre-wrap;min-height:44px}
+  .nota{font-size:12px;color:var(--muted);margin:6px 0}
+  .fila{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .muestra{border-top:1px solid var(--bd);padding:9px 0;font-size:13px}
+  .muestra:first-child{border-top:none}
+  .tasa{font-weight:700;padding:1px 7px;border-radius:20px;font-size:12px}
+  .ok{background:#e3f2e8;color:#1b6b41} .med{background:#fdf3d8;color:#8a6100} .mal{background:#fbe4e1;color:#a5342a}
+  .dif ins{background:#d9f2e2;text-decoration:none} .dif del{background:#fbdcd7}
+  .barra{height:8px;background:#e4e4e4;border-radius:5px;overflow:hidden;margin:7px 0}
+  .barra>i{display:block;height:100%;background:var(--verde);width:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Banco de pruebas de dictado</h1>
+  <p>Dicta como lo harías en terreno. Guarda el audio para poder volver a medir después.</p>
+</header>
+<main>
+
+<div class="card" id="cMotor">
+  <h2>Motor</h2>
+  <div class="fila"><button class="p" id="bMotor">Preparar motor</button><span class="nota" id="estMotor">—</span></div>
+  <div class="barra"><i id="prog"></i></div>
+</div>
+
+<div class="card">
+  <h2>1 · Dictar</h2>
+  <p class="nota">Habla como en terreno: a tu ritmo, con los términos que usas de verdad. Si hay
+  viento o ruido, mejor — así se mide la condición real, no la de escritorio.</p>
+  <button id="grabar" disabled>🎤 Grabar</button>
+</div>
+
+<div class="card" id="cResultado" style="display:none">
+  <h2>2 · Corregir</h2>
+  <p class="nota">Esto entendió el motor:</p>
+  <div class="crudo" id="crudo"></div>
+  <p class="nota">Escribe abajo lo que <b>realmente dijiste</b>. Corrige solo lo que esté mal.</p>
+  <textarea id="correcto"></textarea>
+  <div class="fila" style="margin-top:9px">
+    <button class="p" id="bGuardar">Guardar muestra</button>
+    <button id="bDescartar">Descartar</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Muestras guardadas (<span id="n">0</span>)</h2>
+  <div id="lista"><p class="nota">Todavía no hay ninguna.</p></div>
+  <div class="fila" style="margin-top:10px">
+    <button class="p" id="bExportar">⬇ Exportar todo</button>
+    <button class="del" id="bBorrar">Borrar todo</button>
+  </div>
+  <p class="nota">Exporta y mándame el archivo: con eso veo qué falla de verdad y podemos medir si
+  cada mejora sirve, en vez de suponerlo.</p>
+</div>
+
+</main>
+<script src="vendor/voz/voz.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const DB='voz-banco', STORE='muestras';
+
+// El modelo se sirve del mismo lugar que esta pagina (asi el banco funciona igual publicado que
+// en un servidor local).
+VozTerreno.configurar({ modelo: new URL('modelo/', location.href).href });
+
+// ---- almacen ---------------------------------------------------------------------------------
+function abrir(){return new Promise((res,rej)=>{const r=indexedDB.open(DB,1);
+  r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE,{keyPath:'id'});};
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});}
+async function guardar(m){const db=await abrir();return new Promise((res,rej)=>{
+  const t=db.transaction(STORE,'readwrite').objectStore(STORE).put(m);t.onsuccess=res;t.onerror=()=>rej(t.error);});}
+async function todas(){const db=await abrir();return new Promise((res,rej)=>{
+  const q=db.transaction(STORE,'readonly').objectStore(STORE).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error);});}
+async function borrarTodo(){const db=await abrir();return new Promise(res=>{
+  const t=db.transaction(STORE,'readwrite').objectStore(STORE).clear();t.onsuccess=res;});}
+
+// ---- medida de error -------------------------------------------------------------------------
+// Tasa de error por PALABRA (WER): cuántas palabras habría que tocar para pasar del texto crudo
+// al correcto, sobre el total. Es la medida estándar y, sobre todo, es comparable entre versiones:
+// sin un número no hay forma de saber si un cambio mejoró algo o solo lo movió de lugar.
+const palabras = s => String(s||'').toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g,'')      // sin tildes: no queremos castigar acentos
+  .replace(/[^\wñ\s]/g,' ').split(/\s+/).filter(Boolean);
+function wer(a,b){
+  const x=palabras(a), y=palabras(b);
+  if(!y.length) return x.length?1:0;
+  const d=Array.from({length:x.length+1},(_,i)=>[i,...Array(y.length).fill(0)]);
+  for(let j=0;j<=y.length;j++) d[0][j]=j;
+  for(let i=1;i<=x.length;i++) for(let j=1;j<=y.length;j++)
+    d[i][j]=Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+(x[i-1]===y[j-1]?0:1));
+  return d[x.length][y.length]/y.length;
+}
+const esc = s => String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+// Diferencias palabra a palabra, para ver de un vistazo QUE se equivocó (no solo cuánto).
+function diff(crudo,ok){
+  const x=String(crudo).split(/\s+/), y=String(ok).split(/\s+/);
+  const n=palabras(crudo), m=palabras(ok);
+  const d=Array.from({length:n.length+1},(_,i)=>[i,...Array(m.length).fill(0)]);
+  for(let j=0;j<=m.length;j++) d[0][j]=j;
+  for(let i=1;i<=n.length;i++) for(let j=1;j<=m.length;j++)
+    d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(n[i-1]===m[j-1]?0:1));
+  let i=n.length,j=m.length,out=[];
+  while(i>0||j>0){
+    if(i>0&&j>0&&n[i-1]===m[j-1]){out.unshift(esc(y[j-1]||m[j-1]));i--;j--;}
+    else if(j>0&&(i===0||d[i][j-1]<=d[i-1][j]&&d[i][j-1]<=d[i-1][j-1])){out.unshift('<ins>'+esc(y[j-1]||m[j-1])+'</ins>');j--;}
+    else if(i>0&&(j===0||d[i-1][j]<=d[i-1][j-1])){out.unshift('<del>'+esc(x[i-1]||n[i-1])+'</del>');i--;}
+    else {out.unshift('<del>'+esc(x[i-1]||n[i-1])+'</del> <ins>'+esc(y[j-1]||m[j-1])+'</ins>');i--;j--;}
+  }
+  return out.join(' ');
+}
+
+// ---- motor -----------------------------------------------------------------------------------
+async function refrescarMotor(){
+  const listo = VozTerreno.estado()==='listo' || await VozTerreno.estaDescargado();
+  const mb = +((await VozTerreno.tamanoEnDisco())/1048576).toFixed(0);
+  $('#estMotor').textContent = listo ? `descargado (${mb} MB) — funciona sin señal` : 'no descargado (~78 MB, una sola vez)';
+  $('#bMotor').style.display = listo ? 'none' : '';
+  $('#grabar').disabled = !listo;
+}
+$('#bMotor').onclick = async () => {
+  $('#bMotor').disabled=true;
+  try{
+    await VozTerreno.descargar(p=>{ $('#prog').style.width=p.pct+'%'; $('#estMotor').textContent='descargando… '+Math.round(p.pct)+'%'; });
+    $('#prog').style.width='100%';
+  }catch(e){ $('#estMotor').textContent='✗ '+e.message; }
+  $('#bMotor').disabled=false; refrescarMotor();
+};
+
+// ---- grabar ----------------------------------------------------------------------------------
+let rec=null, trozos=[], audioActual=null, t0=0, crono=null;
+$('#grabar').onclick = async () => {
+  if(rec && rec.state==='recording'){ rec.stop(); return; }
+  let stream;
+  try{ stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+  catch(e){ alert('No se pudo usar el micrófono: '+e.message); return; }
+  trozos=[]; rec=new MediaRecorder(stream);
+  rec.ondataavailable=e=>e.data.size&&trozos.push(e.data);
+  rec.onstop=async()=>{
+    stream.getTracks().forEach(t=>t.stop()); clearInterval(crono);
+    $('#grabar').classList.remove('rec'); $('#grabar').textContent='⏳ Transcribiendo…'; $('#grabar').disabled=true;
+    audioActual = new Blob(trozos, {type: rec.mimeType || 'audio/webm'});
+    try{
+      const t=performance.now();
+      const texto = await VozTerreno.transcribirBlob(audioActual);
+      $('#crudo').textContent = texto || '(no se entendió nada)';
+      $('#correcto').value = texto;
+      $('#cResultado').style.display='';
+      $('#cResultado').scrollIntoView({behavior:'smooth',block:'start'});
+      $('#cResultado').dataset.ms = Math.round(performance.now()-t);
+    }catch(e){ alert('No se pudo transcribir: '+e.message); }
+    $('#grabar').textContent='🎤 Grabar'; $('#grabar').disabled=false;
+  };
+  rec.start(); t0=Date.now();
+  const tic=()=>{const s=Math.floor((Date.now()-t0)/1000);
+    $('#grabar').textContent='⏹ Detener  ·  '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
+  $('#grabar').classList.add('rec'); tic(); crono=setInterval(tic,1000);
+};
+
+$('#bDescartar').onclick = () => { $('#cResultado').style.display='none'; audioActual=null; };
+$('#bGuardar').onclick = async () => {
+  if(!audioActual) return;
+  await guardar({ id:'m'+Date.now(), fecha:new Date().toISOString(),
+    crudo:$('#crudo').textContent, correcto:$('#correcto').value.trim(),
+    ms:+($('#cResultado').dataset.ms||0), audio:audioActual, tipoAudio:audioActual.type });
+  $('#cResultado').style.display='none'; audioActual=null; pintarLista();
+};
+
+// ---- lista y export --------------------------------------------------------------------------
+async function pintarLista(){
+  const ms = (await todas()).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  $('#n').textContent = ms.length;
+  if(!ms.length){ $('#lista').innerHTML='<p class="nota">Todavía no hay ninguna.</p>'; return; }
+  const tasas = ms.map(m=>wer(m.crudo,m.correcto));
+  const media = tasas.reduce((a,b)=>a+b,0)/tasas.length;
+  $('#lista').innerHTML =
+    `<p class="nota">Error medio por palabra: <b>${(media*100).toFixed(1)}%</b> — `
+    + `de cada 100 palabras dictadas, ~${Math.round(media*100)} salen mal.</p>`
+    + ms.map((m,i)=>{
+      const t=tasas[i], cls = t<.1?'ok' : t<.25?'med' : 'mal';
+      return `<div class="muestra"><div class="fila" style="justify-content:space-between">
+        <span class="nota">${new Date(m.fecha).toLocaleString('es-CL')} · ${(m.ms/1000).toFixed(1)}s</span>
+        <span class="tasa ${cls}">${(t*100).toFixed(0)}%</span></div>
+        <div class="dif">${diff(m.crudo,m.correcto)}</div></div>`;
+    }).join('');
+}
+$('#bBorrar').onclick = async () => {
+  if(!confirm('¿Borrar todas las muestras? No se puede deshacer.')) return;
+  await borrarTodo(); pintarLista();
+};
+$('#bExportar').onclick = async () => {
+  const ms = await todas();
+  if(!ms.length){ alert('No hay muestras que exportar'); return; }
+  // El audio va DENTRO del JSON en base64: sin el audio no se puede volver a medir contra las
+  // mismas grabaciones, y sin eso no hay forma de saber si una mejora futura mejora de verdad.
+  const b64 = b => new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result.split(',')[1]);f.readAsDataURL(b);});
+  const datos = { app:'voz-terreno-banco', formato:1, fecha:new Date().toISOString(),
+    modelo:'Xenova/whisper-base',
+    muestras: await Promise.all(ms.map(async m=>({ fecha:m.fecha, crudo:m.crudo, correcto:m.correcto,
+      ms:m.ms, wer:+wer(m.crudo,m.correcto).toFixed(4), tipoAudio:m.tipoAudio, audio:await b64(m.audio) }))) };
+  const blob = new Blob([JSON.stringify(datos)], {type:'application/json'});
+  const nombre = 'banco-dictado-'+new Date().toISOString().slice(0,10)+'.json';
+  // En el teléfono, Compartir es mucho más práctico que una descarga; en PC no existe y cae al
+  // enlace de descarga de siempre.
+  const file = new File([blob], nombre, {type:'application/json'});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:nombre}); return; }catch(e){ if(e.name==='AbortError') return; }
+  }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nombre; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+};
+
+refrescarMotor(); pintarLista();
+</script>
+</body>
+</html>
