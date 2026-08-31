@@ -50,16 +50,27 @@ async function cargar({ modeloBase, modeloId }) {
   self.postMessage({ tipo: 'listo' });
 }
 
-async function transcribir(audio) {
+async function transcribir(datos) {
   if (!_pipe) throw new Error('El modelo todavia no esta cargado');
-  // Whisper solo "ve" 30 s por vez: sin trocear, un dictado largo se corta en seco. El solape
-  // evita perder la palabra justo en el corte.
-  const r = await _pipe(audio, {
+  const audio = datos.audio || datos;          // compatible con el formato viejo (solo el Float32)
+  const opciones = {
     language: 'spanish',
     task: 'transcribe',
+    // Whisper solo "ve" 30 s por vez: sin trocear, un dictado largo se corta en seco. El solape
+    // evita perder la palabra justo en el corte.
     chunk_length_s: 30,
     stride_length_s: 5,
-  });
+  };
+  // Opciones extra de generacion. MEDIDO en transformers.js 3.8.1 (2026-08-30):
+  //   - Las opciones SI llegan al modelo: max_new_tokens:8 trunca la salida como corresponde.
+  //   - Pero `prompt` (sesgar el decodificador con vocabulario) y `num_beams` (busqueda por
+  //     haces) estan IGNORADOS en silencio para Whisper: misma transcripcion palabra por palabra
+  //     y sin costo de tiempo (beams=5 deberia tardar el triple). O sea que NO se puede mejorar
+  //     el vocabulario tecnico sesgando el reconocimiento; hay que corregir despues.
+  // Se deja el paso de opciones abierto igual, para poder medir de nuevo cuando cambie la version.
+  if (datos.opts) Object.assign(opciones, datos.opts);
+
+  const r = await _pipe(audio, opciones);
   self.postMessage({ tipo: 'texto', texto: (r.text || '').trim() });
 }
 

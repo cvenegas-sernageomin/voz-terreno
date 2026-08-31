@@ -110,7 +110,7 @@ async function transcribirBlob(blob, etiqueta) {
   const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
   const f32 = (await off.startRendering()).getChannelData(0);
   log(`Transcribiendo «${etiqueta}» — ${audio.duration.toFixed(1)} s`);
-  worker.postMessage({tipo:'transcribir', datos:f32}, [f32.buffer]);
+  worker.postMessage({tipo:'transcribir', datos:Object.assign({audio:f32}, window.__opts||{})}, [f32.buffer]);
 }
 window.probarArchivo = async ruta => {
   const r = await fetch(ruta);
@@ -140,7 +140,7 @@ $('#bGrabar').onclick = async () => {
       const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
       const f32 = (await off.startRendering()).getChannelData(0);
       log(`Audio: ${audio.duration.toFixed(1)} s → ${f32.length} muestras a 16 kHz`);
-      worker.postMessage({tipo:'transcribir', datos:f32}, [f32.buffer]);
+      worker.postMessage({tipo:'transcribir', datos:Object.assign({audio:f32}, window.__opts||{})}, [f32.buffer]);
     };
     rec.start();
     $('#bGrabar').textContent = '⏹ Detener';
