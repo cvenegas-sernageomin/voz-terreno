@@ -118,3 +118,15 @@ Con audio limpio, whisper-base acierta el vocabulario geológico técnico —*pr
 *afanítica*, *fenocristales*, *subredondeados*— con acentuación correcta. Falla sobre todo en la
 **separación de palabras** (*plagio clasa* por *plagioclasa*) y en plurales. En terreno, con viento
 y prisa, va a ser peor: conviene medirlo con voz real antes de sacar conclusiones.
+
+## Licencia y cómo citar
+
+© 2026 SERNAGEOMIN / Carlos Venegas Benavides. El trabajo original de este repositorio se distribuye bajo
+**[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.es)**: se puede compartir y adaptar
+**citando la fuente** y **sin fines comerciales**. Ver [`LICENSE`](LICENSE).
+
+El modelo Whisper (OpenAI) y Transformers.js conservan sus licencias (MIT y Apache 2.0). Las librerías de terceros incluidas (por ejemplo en `vendor/`) conservan sus propias licencias.
+
+Cita sugerida:
+
+> SERNAGEOMIN / Venegas Benavides, C. (2026). VozTerreno: dictado por voz sin conexión [aplicación web]. https://cvenegas-sernageomin.github.io/voz-terreno/demo.html

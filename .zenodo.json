@@ -1,0 +1,31 @@
+{
+  "upload_type": "software",
+  "title": "VozTerreno: dictado por voz sin conexión",
+  "description": "<p>Módulo de dictado por voz 100 % sin conexión para aplicaciones de geología de terreno, con Whisper sobre Transformers.js en el navegador y extracción de términos geológicos.</p><p>Publicado en https://cvenegas-sernageomin.github.io/voz-terreno/demo.html</p><p>La licencia CC BY-NC 4.0 cubre el trabajo original de los autores. No cubre el material de terceros:</p><ul><li>El modelo Whisper (OpenAI) y Transformers.js conservan sus licencias (MIT y Apache 2.0).</li><li>Las librerías de terceros incluidas (por ejemplo en vendor/) conservan sus propias licencias.</li></ul>",
+  "creators": [
+    {
+      "name": "Servicio Nacional de Geología y Minería (SERNAGEOMIN)"
+    },
+    {
+      "name": "Venegas Benavides, Carlos",
+      "affiliation": "Servicio Nacional de Geología y Minería (SERNAGEOMIN)"
+    }
+  ],
+  "license": "cc-by-nc-4.0",
+  "access_right": "open",
+  "language": "spa",
+  "keywords": [
+    "dictado por voz",
+    "Whisper",
+    "offline",
+    "geología de campo",
+    "SERNAGEOMIN"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://cvenegas-sernageomin.github.io/voz-terreno/demo.html",
+      "relation": "isDocumentedBy",
+      "resource_type": "other"
+    }
+  ]
+}
